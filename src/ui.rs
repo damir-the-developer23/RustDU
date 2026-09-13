@@ -1,5 +1,5 @@
 use ratatui::{prelude::*, widgets::*};
-use crate::app::{App, AppMode, Language, format_size};
+use crate::app::{App, AppMode, Language};
 
 fn color_for_size(size: u64) -> Color {
     const GB: u64 = 1024 * 1024 * 1024;
@@ -55,7 +55,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             app.current_path.display(),
             app.nodes.len(),
             app.raw_entries.len(),
-            format_size(app.total_size),
+            App::format_size(app.total_size),
             if !app.filter_query.is_empty() { format!("  |  Filter: '{}'", app.filter_query) } else { "".to_string() }
         ),
         Language::Russian => format!(
@@ -63,7 +63,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             app.current_path.display(),
             app.nodes.len(),
             app.raw_entries.len(),
-            format_size(app.total_size),
+            App::format_size(app.total_size),
             if !app.filter_query.is_empty() { format!("  |  Фильтр: '{}'", app.filter_query) } else { "".to_string() }
         ),
     };
@@ -81,8 +81,8 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
     let bottom_text = match app.mode {
         AppMode::Browse => match app.lang {
-            Language::English => "Help (? or Shift + /) | Filter (/)".to_string(),
-            Language::Russian => "Справка (? или Shift + /) | Фильтр (/)".to_string(),
+            Language::English => "Help (? or Shift + /)".to_string(),
+            Language::Russian => "Справка (? или Shift + /)".to_string(),
         },
         AppMode::ConfirmDelete => match app.lang {
             Language::English => "Delete selected item? (y - yes, n - no)".to_string(),
@@ -108,16 +108,41 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         },
     };
 
+    // ---- Всплывающее окно прогресса сканирования ----
     if app.loading {
-        let loading_msg = match app.lang {
-            Language::English => "Loading...",
-            Language::Russian => "Загрузка...",
+        let loading_title = match app.lang {
+            Language::English => " Scanning Directory... ",
+            Language::Russian => " Сканирование директории... ",
         };
-        let loading_text = Paragraph::new(loading_msg)
-            .block(Block::default().borders(Borders::NONE))
-            .style(Style::default().fg(Color::Yellow));
-        let loading_area = Rect::new(area.width / 2 - 6, area.height / 2 - 1, 12, 1);
-        frame.render_widget(loading_text, loading_area);
+
+        let info_text = match app.lang {
+            Language::English => format!(
+                "Scanned files/items: {}\nPath: {}\n\nPlease wait, analyzing disk structure...",
+                app.scanned_files_count, app.scanning_path
+            ),
+            Language::Russian => format!(
+                "Обработано файлов/элементов: {}\nПуть: {}\n\nПожалуйста, подождите, идет анализ...",
+                app.scanned_files_count, app.scanning_path
+            ),
+        };
+
+        let popup_block = Block::default()
+            .borders(Borders::ALL)
+            .title(loading_title)
+            .style(Style::default().bg(Color::Black).fg(Color::Yellow));
+
+        let popup_paragraph = Paragraph::new(info_text)
+            .block(popup_block)
+            .alignment(Alignment::Left);
+
+        let popup_width = 70;
+        let popup_height = 8;
+        let popup_x = area.width.saturating_sub(popup_width) / 2;
+        let popup_y = area.height.saturating_sub(popup_height) / 2;
+        let popup_area = Rect::new(popup_x, popup_y, popup_width.min(area.width), popup_height.min(area.height));
+
+        frame.render_widget(Clear, popup_area);
+        frame.render_widget(popup_paragraph, popup_area);
     }
 
     let bottom_paragraph = Paragraph::new(bottom_text)

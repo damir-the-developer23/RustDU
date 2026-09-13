@@ -4,6 +4,12 @@ use ratatui::widgets::ListState;
 use std::thread;
 use std::sync::mpsc::{self, Receiver};
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum ViewMode {
+    List,
+    Grid,
+}
+
 use crate::scanner;
 
 #[derive(PartialEq, Clone, Copy)]
@@ -35,12 +41,14 @@ pub struct App {
     pub input_buffer: String,
     pub filter_query: String,
     pub loading: bool,
+    pub scanned_files_count: usize,
+    pub scanning_path: String,
     pub delete_target: Option<String>,
     pub total_size: u64,
     pub sort_mode: SortMode,
     pub raw_entries: Vec<scanner::FileEntry>,
     pub lang: Language,
-    pub rx_scanner: Option<Receiver<anyhow::Result<(Vec<scanner::FileEntry>, u64)>>>,
+    pub rx_scanner: Option<Receiver<scanner::ScanMessage>>,
 }
 
 impl App {
@@ -55,6 +63,8 @@ impl App {
             input_buffer: String::new(),
             filter_query: String::new(),
             loading: false,
+            scanned_files_count: 0,
+            scanning_path: String::new(),
             delete_target: None,
             total_size: 0,
             sort_mode: SortMode::Size,
@@ -68,23 +78,22 @@ impl App {
 
     pub fn poll_scanner(&mut self) {
         if let Some(rx) = &self.rx_scanner {
-            if let Ok(result) = rx.try_recv() {
-                match result {
-                    Ok((entries, total_size)) => {
+            while let Ok(msg) = rx.try_recv() {
+                match msg {
+                    scanner::ScanMessage::Progress { scanned_files, current_path } => {
+                        self.scanned_files_count = scanned_files;
+                        self.scanning_path = current_path;
+                    }
+                    scanner::ScanMessage::Finished { entries, total_size } => {
                         self.raw_entries = entries;
                         self.total_size = total_size;
                         self.apply_sort();
                         self.list_state.select(Some(0));
-                    }
-                    Err(_) => {
-                        self.raw_entries = Vec::new();
-                        self.total_size = 0;
-                        self.nodes = Vec::new();
-                        self.list_state.select(Some(0));
+                        self.loading = false;
+                        self.rx_scanner = None;
+                        break;
                     }
                 }
-                self.loading = false;
-                self.rx_scanner = None;
             }
         }
     }
@@ -272,7 +281,7 @@ impl App {
                 continue;
             }
 
-            let size_str = format_size(entry.size);
+            let size_str = Self::format_size(entry.size);
             let icon = if entry.is_dir { "📁" } else { "💾" };
             let percent = if self.total_size > 0 {
                 (entry.size as f64 / self.total_size as f64) * 100.0
@@ -286,28 +295,29 @@ impl App {
 
     pub fn load_directory(&mut self) {
         self.loading = true;
+        self.scanned_files_count = 0;
+        self.scanning_path = self.current_path.to_string_lossy().to_string();
         let path = self.current_path.clone();
         let (tx, rx) = mpsc::channel();
         self.rx_scanner = Some(rx);
 
         thread::spawn(move || {
-            let result = scanner::scan_directory(&path);
-            let _ = tx.send(result);
+            let _ = scanner::scan_directory_with_progress(&path, tx);
         });
     }
-}
 
-pub fn format_size(size: u64) -> String {
-    const KB: u64 = 1024;
-    const MB: u64 = KB * 1024;
-    const GB: u64 = MB * 1024;
-    if size >= GB {
-        format!("{:.1}G", size as f64 / GB as f64)
-    } else if size >= MB {
-        format!("{:.1}M", size as f64 / MB as f64)
-    } else if size >= KB {
-        format!("{:.1}K", size as f64 / KB as f64)
-    } else {
-        format!("{}B", size)
+    pub fn format_size(size: u64) -> String {
+        const KB: u64 = 1024;
+        const MB: u64 = KB * 1024;
+        const GB: u64 = MB * 1024;
+        if size >= GB {
+            format!("{:.1}G", size as f64 / GB as f64)
+        } else if size >= MB {
+            format!("{:.1}M", size as f64 / MB as f64)
+        } else if size >= KB {
+            format!("{:.1}K", size as f64 / KB as f64)
+        } else {
+            format!("{}B", size)
+        }
     }
 }

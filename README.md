@@ -1,7 +1,7 @@
 # 🦀 RustDU
 
 **RustDU** is a modern, interactive terminal-based disk usage analyzer written in Rust.  
-Inspired by `ncdu`, it provides a colorful TUI with **real-time** sorting, file/folder icons, percentage bars, and intuitive navigation — all with **Russian keyboard shortcut support** (no need to switch layouts).
+Inspired by **ncdu**, it provides a colorful TUI with **real-time** sorting, file/folder icons, percentage bars, and intuitive navigation.
 
 ## 📌 Feedback from you:
 RustDU🦀 is actively maintained as a pet project alongside my university studies🎓. Updates🔄 and new features✨ might occasionally land a little slower during semesters📚, but I'm fully committed
@@ -10,13 +10,15 @@ RustDU🦀 is actively maintained as a pet project alongside my university studi
 Contributions🤝 and issues🐞 are always welcome! 😄 I'd love to read your ideas💡, requests📩, and suggestions💭—though I do ask that you refrain from posting nasty comments💬🚫.
 
 📢 My channels:
-📱 https://t.me/MyRustDU
-📥 https://t.me/MyRustDU_input
+1. 📱 **https://t.me/MyRustDU**
+2. 📥 **https://t.me/MyRustDU_input**
+
+My Github: **github.com/damir-the-developer23/rustdu**
 
 [![Crates.io](https://img.shields.io/crates/v/rustdu.svg)](https://crates.io/crates/rustdu)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/Apache 2.0)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/damirkondratenko23-bot/rustdu/actions)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/damir-the-developer23/rustdu/actions)
 
 ---
 
@@ -38,7 +40,7 @@ Contributions🤝 and issues🐞 are always welcome! 😄 I'd love to read your 
 
 ## 📦 Installation
 
-### Via `cargo` (requires Rust)
+### `Via cargo`
 ```bash
 cargo install rustdu
 ```

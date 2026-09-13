@@ -75,7 +75,6 @@ fn main() -> anyhow::Result<()> {
 
         terminal.draw(|frame| ui::render(frame, &mut app))?;
 
-        // Проверяем наличие событий с таймаутом в 50мс, чтобы не вешать поток
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
