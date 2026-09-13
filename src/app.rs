@@ -5,6 +5,7 @@ use std::thread;
 use std::sync::mpsc::{self, Receiver};
 
 #[derive(Clone, Copy, PartialEq)]
+#[allow(dead_code)]
 pub enum ViewMode {
     List,
     Grid,
