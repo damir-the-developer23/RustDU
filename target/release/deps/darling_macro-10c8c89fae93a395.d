@@ -1,5 +1,0 @@
-/home/damir/uaw/target/release/deps/darling_macro-10c8c89fae93a395.d: /home/damir/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/darling_macro-0.24.1/src/lib.rs
-
-/home/damir/uaw/target/release/deps/libdarling_macro-10c8c89fae93a395.so: /home/damir/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/darling_macro-0.24.1/src/lib.rs
-
-/home/damir/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/darling_macro-0.24.1/src/lib.rs:
