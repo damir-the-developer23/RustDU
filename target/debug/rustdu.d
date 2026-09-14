@@ -1,1 +1,0 @@
-/home/damir/RustDU\ v0.4.0/target/debug/rustdu: /home/damir/RustDU\ v0.4.0/target/package/rustdu-0.4.0/src/app.rs /home/damir/RustDU\ v0.4.0/target/package/rustdu-0.4.0/src/main.rs /home/damir/RustDU\ v0.4.0/target/package/rustdu-0.4.0/src/scanner.rs /home/damir/RustDU\ v0.4.0/target/package/rustdu-0.4.0/src/tui.rs /home/damir/RustDU\ v0.4.0/target/package/rustdu-0.4.0/src/ui.rs
