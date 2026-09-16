@@ -3,15 +3,10 @@ use std::path::PathBuf;
 use ratatui::widgets::ListState;
 use std::thread;
 use std::sync::mpsc::{self, Receiver};
-
-#[derive(Clone, Copy, PartialEq)]
-#[allow(dead_code)]
-pub enum ViewMode {
-    List,
-    Grid,
-}
+use std::collections::HashSet;
 
 use crate::scanner;
+use crate::config;
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum Language {
@@ -26,6 +21,7 @@ pub enum AppMode {
     InputPath,
     Filter,
     Help,
+    Plot,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -50,10 +46,16 @@ pub struct App {
     pub raw_entries: Vec<scanner::FileEntry>,
     pub lang: Language,
     pub rx_scanner: Option<Receiver<scanner::ScanMessage>>,
+    pub show_hidden: bool,
+    pub marked_items: HashSet<String>,
+    pub notification_msg: Option<String>,
 }
 
 impl App {
     pub fn new(path: PathBuf) -> Self {
+        let cfg = config::load_config();
+        let lang = if cfg.default_lang == "ru" { Language::Russian } else { Language::English };
+        
         let mut state = ListState::default();
         state.select(Some(0));
         let mut app = App {
@@ -70,8 +72,11 @@ impl App {
             total_size: 0,
             sort_mode: SortMode::Size,
             raw_entries: Vec::new(),
-            lang: Language::English,
+            lang,
             rx_scanner: None,
+            show_hidden: cfg.show_hidden,
+            marked_items: HashSet::new(),
+            notification_msg: None,
         };
         app.load_directory();
         app
@@ -100,6 +105,7 @@ impl App {
     }
 
     pub fn handle_key(&mut self, key: KeyCode) {
+        self.notification_msg = None; // сбрасываем уведомление при нажатии
         if let KeyCode::Char('l') = key {
             if self.mode != AppMode::InputPath && self.mode != AppMode::Filter {
                 self.lang = match self.lang {
@@ -115,9 +121,9 @@ impl App {
             AppMode::ConfirmDelete => self.handle_confirm_delete(key),
             AppMode::InputPath => self.handle_input_path(key),
             AppMode::Filter => self.handle_filter(key),
-            AppMode::Help => {
+            AppMode::Help | AppMode::Plot => {
                 match key {
-                    KeyCode::Char('?') | KeyCode::Esc | KeyCode::Enter => {
+                    KeyCode::Char('?') | KeyCode::Esc | KeyCode::Enter | KeyCode::Char('p') => {
                         self.mode = AppMode::Browse;
                     }
                     _ => {
@@ -144,10 +150,12 @@ impl App {
                 if let Some(selected) = self.list_state.selected() {
                     if let Some(entry_str) = self.nodes.get(selected) {
                         let name = entry_str.split_whitespace().last().unwrap_or(entry_str);
+                        let name = name.trim_start_matches("[X] ").trim_start_matches("[ ] ");
                         let new_path = self.current_path.join(name);
                         if new_path.is_dir() {
                             self.current_path = new_path;
                             self.filter_query.clear();
+                            self.marked_items.clear();
                             self.load_directory();
                         }
                     }
@@ -157,17 +165,55 @@ impl App {
                 if let Some(parent) = self.current_path.parent() {
                     self.current_path = parent.to_path_buf();
                     self.filter_query.clear();
+                    self.marked_items.clear();
                     self.load_directory();
                 }
             }
-            KeyCode::Char('d') => {
+            KeyCode::Char(' ') => {
                 if let Some(selected) = self.list_state.selected() {
                     if let Some(entry_str) = self.nodes.get(selected) {
                         let name = entry_str.split_whitespace().last().unwrap_or(entry_str);
-                        self.delete_target = Some(name.to_string());
+                        let name = name.trim_start_matches("[X] ").trim_start_matches("[ ] ");
+                        if self.marked_items.contains(name) {
+                            self.marked_items.remove(name);
+                        } else {
+                            self.marked_items.insert(name.to_string());
+                        }
+                        self.build_display_strings();
+                    }
+                }
+            }
+            KeyCode::Char('d') => {
+                if !self.marked_items.is_empty() {
+                    self.mode = AppMode::ConfirmDelete;
+                } else if let Some(selected) = self.list_state.selected() {
+                    if let Some(entry_str) = self.nodes.get(selected) {
+                        let name = entry_str.split_whitespace().last().unwrap_or(entry_str);
+                        let name = name.trim_start_matches("[X] ").trim_start_matches("[ ] ");
+                        self.marked_items.insert(name.to_string());
                         self.mode = AppMode::ConfirmDelete;
                     }
                 }
+            }
+            KeyCode::Char('h') => {
+                self.show_hidden = !self.show_hidden;
+                self.build_display_strings();
+            }
+            KeyCode::Char('e') => {
+                match scanner::export_report(&self.current_path, &self.raw_entries, self.total_size) {
+                    Ok(_) => {
+                        self.notification_msg = Some(match self.lang {
+                            Language::English => "Report exported to rustdu_report.json!".to_string(),
+                            Language::Russian => "Отчет успешно экспортирован в rustdu_report.json!".to_string(),
+                        });
+                    }
+                    Err(_) => {
+                        self.notification_msg = Some("Export failed!".to_string());
+                    }
+                }
+            }
+            KeyCode::Char('p') => {
+                self.mode = AppMode::Plot;
             }
             KeyCode::Char('g') => {
                 self.input_buffer.clear();
@@ -197,20 +243,16 @@ impl App {
     fn handle_confirm_delete(&mut self, key: KeyCode) {
         match key {
             KeyCode::Char('y') => {
-                if let Some(name) = self.delete_target.take() {
+                for name in self.marked_items.drain() {
                     let full_path = self.current_path.join(&name);
-                    match scanner::delete_entry(&full_path) {
-                        Ok(_) => {
-                            self.load_directory();
-                            self.mode = AppMode::Browse;
-                        }
-                        Err(_) => {
-                            self.mode = AppMode::Browse;
-                        }
-                    }
-                } else {
-                    self.mode = AppMode::Browse;
+                    let _ = scanner::delete_entry(&full_path);
                 }
+                if let Some(target) = self.delete_target.take() {
+                    let full_path = self.current_path.join(&target);
+                    let _ = scanner::delete_entry(&full_path);
+                }
+                self.load_directory();
+                self.mode = AppMode::Browse;
             }
             KeyCode::Char('n') | KeyCode::Esc => {
                 self.delete_target = None;
@@ -233,6 +275,7 @@ impl App {
                 if path.exists() && path.is_dir() {
                     self.current_path = path;
                     self.filter_query.clear();
+                    self.marked_items.clear();
                     self.load_directory();
                 }
                 self.mode = AppMode::Browse;
@@ -278,6 +321,9 @@ impl App {
     pub fn build_display_strings(&mut self) {
         let mut display = Vec::new();
         for entry in &self.raw_entries {
+            if !self.show_hidden && entry.name.starts_with('.') {
+                continue;
+            }
             if !self.filter_query.is_empty() && !entry.name.to_lowercase().contains(&self.filter_query.to_lowercase()) {
                 continue;
             }
@@ -289,7 +335,8 @@ impl App {
             } else {
                 0.0
             };
-            display.push(format!("{:>8}  {:>5.1}%  {}  {}", size_str, percent, icon, entry.name));
+            let mark = if self.marked_items.contains(&entry.name) { "[X]" } else { "[ ]" };
+            display.push(format!("{} {:>8}  {:>5.1}%  {}  {}", mark, size_str, percent, icon, entry.name));
         }
         self.nodes = display;
     }

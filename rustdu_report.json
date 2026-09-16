@@ -1,0 +1,48 @@
+{
+  "path": ".",
+  "total_size": 72890,
+  "entries": [
+    {
+      "name": "src",
+      "path": "./src",
+      "size": 32611,
+      "is_dir": true
+    },
+    {
+      "name": "Cargo.lock",
+      "path": "./Cargo.lock",
+      "size": 25381,
+      "is_dir": false
+    },
+    {
+      "name": "LICENSE.md",
+      "path": "./LICENSE.md",
+      "size": 10194,
+      "is_dir": false
+    },
+    {
+      "name": "README.md",
+      "path": "./README.md",
+      "size": 2172,
+      "is_dir": false
+    },
+    {
+      "name": ".github",
+      "path": "./.github",
+      "size": 1883,
+      "is_dir": true
+    },
+    {
+      "name": "Cargo.toml",
+      "path": "./Cargo.toml",
+      "size": 634,
+      "is_dir": false
+    },
+    {
+      "name": ".gitignore",
+      "path": "./.gitignore",
+      "size": 15,
+      "is_dir": false
+    }
+  ]
+}

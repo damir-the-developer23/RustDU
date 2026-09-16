@@ -2,6 +2,7 @@ mod app;
 mod scanner;
 mod ui;
 mod tui;
+mod config;
 
 use clap::Parser;
 use crossterm::event::{self, Event, KeyCode};

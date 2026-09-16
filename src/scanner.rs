@@ -3,13 +3,13 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
+use serde::Serialize;
 
 static SIZE_CACHE: Lazy<Mutex<HashMap<PathBuf, u64>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct FileEntry {
     pub name: String,
-    #[allow(dead_code)]
     pub path: PathBuf,
     pub size: u64,
     pub is_dir: bool,
@@ -20,6 +20,8 @@ pub enum ScanMessage {
     Progress { scanned_files: usize, current_path: String },
     Finished { entries: Vec<FileEntry>, total_size: u64 },
 }
+
+const IGNORED_DIRS: &[&str] = &["node_modules", ".git", "target", ".cache", ".DS_Store"];
 
 fn dir_size_with_progress(path: &PathBuf, tx: &std::sync::mpsc::Sender<ScanMessage>, counter: &mut usize) -> u64 {
     if let Some(cached) = SIZE_CACHE.lock().unwrap().get(path) {
@@ -35,6 +37,11 @@ fn dir_size_with_progress(path: &PathBuf, tx: &std::sync::mpsc::Sender<ScanMessa
                     scanned_files: *counter,
                     current_path: path.to_string_lossy().to_string(),
                 });
+            }
+
+            let name = entry.file_name().to_string_lossy().to_string();
+            if IGNORED_DIRS.contains(&name.as_str()) {
+                continue;
             }
 
             let meta = match entry.metadata() {
@@ -62,6 +69,11 @@ pub fn scan_directory_with_progress(path: &PathBuf, tx: std::sync::mpsc::Sender<
         let entry = entry?;
         let metadata = entry.metadata()?;
         let name = entry.file_name().to_string_lossy().to_string();
+        
+        if IGNORED_DIRS.contains(&name.as_str()) {
+            continue;
+        }
+
         let path = entry.path();
         let is_dir = metadata.is_dir();
         
@@ -96,5 +108,22 @@ pub fn delete_entry(path: &PathBuf) -> anyhow::Result<()> {
     if let Some(parent) = path.parent() {
         SIZE_CACHE.lock().unwrap().remove(parent);
     }
+    Ok(())
+}
+
+pub fn export_report(path: &PathBuf, entries: &[FileEntry], total_size: u64) -> anyhow::Result<()> {
+    #[derive(Serialize)]
+    struct Report {
+        path: String,
+        total_size: u64,
+        entries: Vec<FileEntry>,
+    }
+    let report = Report {
+        path: path.to_string_lossy().to_string(),
+        total_size,
+        entries: entries.to_vec(),
+    };
+    let json = serde_json::to_string_pretty(&report)?;
+    fs::write("rustdu_report.json", json)?;
     Ok(())
 }

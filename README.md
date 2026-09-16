@@ -16,7 +16,7 @@ Contributions🤝 and issues🐞 are always welcome! 😄 I'd love to read your 
 My Github: **github.com/damir-the-developer23/rustdu**
 
 [![Crates.io](https://img.shields.io/crates/v/rustdu.svg)](https://crates.io/crates/rustdu)
-[![License: Apache 2.0](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/Apache 2.0)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/damir-the-developer23/rustdu/actions)
 
