@@ -24,29 +24,47 @@ impl Default for Config {
     }
 }
 
-pub fn get_config_path() -> Option<PathBuf> {
-    directories::ProjectDirs::from("com", "damir", "rustdu")
-        .map(|proj: directories::ProjectDirs| proj.config_dir().join("config.toml"))
-}
+impl Config {
+    /// `$XDG_CONFIG_HOME/rustdu/config.json` or `~/.config/rustdu/config.json`.
+    /// `$XDG_CONFIG_HOME/rustdu/config.json` or `~/.config/rustdu/config.json`.
+    pub fn path() -> Option<PathBuf> {
+        let base = match std::env::var_os("XDG_CONFIG_HOME") {
+            Some(xdg) => PathBuf::from(xdg),
+            None => {
+                let home = std::env::var_os("HOME")?;
+                PathBuf::from(home).join(".config")
+            }
+        };
+        Some(base.join("rustdu").join("config.json"))
+    }
 
-pub fn load_config() -> Config {
-    if let Some(path) = get_config_path() {
+    /// Load config from disk, or create it with defaults on first run.
+    /// Never fails: on error, returns `Config::default()`.
+    pub fn load() -> Self {
+        let Some(path) = Self::path() else {
+            return Self::default();
+        };
+
         if path.exists() {
-            if let Ok(content) = fs::read_to_string(&path) {
-                if let Ok(config) = toml::from_str(&content) {
-                    return config;
-                }
-            }
+            fs::read_to_string(&path)
+                .ok()
+                .and_then(|s| serde_json::from_str::<Config>(&s).ok())
+                .unwrap_or_default()
         } else {
-            let config = Config::default();
-            if let Some(parent) = path.parent() {
-                let _ = fs::create_dir_all(parent);
-            }
-            if let Ok(toml_str) = toml::to_string_pretty(&config) {
-                let _ = fs::write(path, toml_str);
-            }
-            return config;
+            let cfg = Self::default();
+            let _ = cfg.save();
+            cfg
         }
     }
-    Config::default()
+
+    /// Persist config to disk, creating parent directories if needed.
+    pub fn save(&self) -> anyhow::Result<()> {
+        let path = Self::path().ok_or_else(|| anyhow::anyhow!("no config directory available"))?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let s = serde_json::to_string_pretty(self)?;
+        fs::write(path, s)?;
+        Ok(())
+    }
 }

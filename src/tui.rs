@@ -1,19 +1,23 @@
 use crossterm::{
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     execute,
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use ratatui::{backend::CrosstermBackend, Terminal};
-use std::io::stdout;
+use ratatui::{Terminal, backend::CrosstermBackend};
+use std::io::{self, Stdout, stdout};
 
-pub fn init() -> anyhow::Result<Terminal<CrosstermBackend<std::io::Stdout>>> {
+pub type Tui = Terminal<CrosstermBackend<Stdout>>;
+
+/// Enter alternate screen and enable raw mode.
+pub fn init() -> io::Result<Tui> {
     enable_raw_mode()?;
-    let mut stdout = stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    Ok(Terminal::new(backend)?)
+    let mut out = stdout();
+    execute!(out, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(out);
+    Terminal::new(backend)
 }
 
-pub fn restore() -> anyhow::Result<()> {
+/// Leave alternate screen and disable raw mode.
+pub fn restore() -> io::Result<()> {
     disable_raw_mode()?;
     execute!(stdout(), LeaveAlternateScreen)?;
     Ok(())
