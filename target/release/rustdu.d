@@ -1,1 +1,0 @@
-/home/damir/RustDU\ v0.4.0/target/release/rustdu: /home/damir/RustDU\ v0.4.0/src/app/handlers.rs /home/damir/RustDU\ v0.4.0/src/app/mod.rs /home/damir/RustDU\ v0.4.0/src/config.rs /home/damir/RustDU\ v0.4.0/src/main.rs /home/damir/RustDU\ v0.4.0/src/scanner.rs /home/damir/RustDU\ v0.4.0/src/tui.rs /home/damir/RustDU\ v0.4.0/src/ui.rs
