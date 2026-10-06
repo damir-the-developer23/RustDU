@@ -1,11 +1,24 @@
+//! Directory scanner.
+//!
+//! Sizes are computed recursively and cached in a global `HashMap`.
+//! The top-level listing and every recursive step are parallelised with
+//! `rayon`. Progress messages are funnelled through a `Mutex<Sender>`
+//! so the UI thread sees live updates without blocking the workers
+//! (`std::sync::mpsc::Sender` is `Send` but not `Sync`).
+
 use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::Mutex;
+use std::sync::OnceLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::UNIX_EPOCH;
 
+use rayon::prelude::*;
 use serde::Serialize;
+
+// ── Size cache ─────────────────────────────────────────────────────────────
 
 static SIZE_CACHE: OnceLock<Mutex<HashMap<PathBuf, u64>>> = OnceLock::new();
 
@@ -18,6 +31,8 @@ pub fn clear_cache() {
         m.lock().unwrap().clear();
     }
 }
+
+// ── Data types ─────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FileEntry {
@@ -42,63 +57,85 @@ pub enum ScanMessage {
     },
 }
 
-fn dir_size_with_progress(
-    path: &PathBuf,
-    tx: &std::sync::mpsc::Sender<ScanMessage>,
-    counter: &mut usize,
+/// Shared progress sink — see the module-level comment.
+type ProgressSender = Mutex<std::sync::mpsc::Sender<ScanMessage>>;
+
+// ── Progress helper ────────────────────────────────────────────────────────
+
+/// Bump the shared counter and, every `every`-th file, send a progress
+/// message through the (locked) channel.
+#[inline]
+fn report_progress(tx: &ProgressSender, counter: &AtomicUsize, every: usize, path: &Path) {
+    let n = counter.fetch_add(1, Ordering::Relaxed) + 1;
+    if n.is_multiple_of(every) {
+        if let Ok(guard) = tx.lock() {
+            let _ = guard.send(ScanMessage::Progress {
+                scanned_files: n,
+                current_path: path.to_string_lossy().to_string(),
+            });
+        }
+    }
+}
+
+// ── Recursive size computation (parallel) ──────────────────────────────────
+
+fn dir_size_parallel(
+    path: &Path,
+    tx: &ProgressSender,
+    counter: &AtomicUsize,
     ignored: &[String],
     remaining_depth: Option<usize>,
 ) -> u64 {
-    // Only trust cache for full-depth scans.
+    // Only trust the cache for full-depth scans.
     let use_cache = remaining_depth.is_none();
-    if use_cache && let Some(cached) = cache().lock().unwrap().get(path) {
-        return *cached;
+    if use_cache {
+        if let Some(cached) = cache().lock().unwrap().get(path) {
+            return *cached;
+        }
     }
 
     if remaining_depth == Some(0) {
         return 0;
     }
 
-    let mut total: u64 = 0;
-    if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries.flatten() {
-            *counter += 1;
-            if (*counter).is_multiple_of(50) {
-                let _ = tx.send(ScanMessage::Progress {
-                    scanned_files: *counter,
-                    current_path: path.to_string_lossy().to_string(),
-                });
-            }
+    let Ok(read_dir) = fs::read_dir(path) else {
+        return 0;
+    };
+
+    let entries: Vec<_> = read_dir.filter_map(|e| e.ok()).collect();
+
+    let total: u64 = entries
+        .par_iter()
+        .map(|entry| {
+            report_progress(tx, counter, 50, path);
 
             let name = entry.file_name().to_string_lossy().to_string();
             if ignored.iter().any(|i| i == &name) {
-                continue;
+                return 0u64;
             }
 
-            let meta = match entry.metadata() {
-                Ok(m) => m,
-                Err(_) => continue,
+            let Ok(meta) = entry.metadata() else {
+                return 0u64;
             };
+
             if meta.is_file() {
-                total = total.saturating_add(meta.len());
+                meta.len()
             } else if meta.is_dir() {
                 let next = remaining_depth.map(|d| d.saturating_sub(1));
-                total = total.saturating_add(dir_size_with_progress(
-                    &entry.path(),
-                    tx,
-                    counter,
-                    ignored,
-                    next,
-                ));
+                dir_size_parallel(&entry.path(), tx, counter, ignored, next)
+            } else {
+                0u64
             }
-        }
-    }
+        })
+        .sum();
 
     if use_cache {
-        cache().lock().unwrap().insert(path.clone(), total);
+        cache().lock().unwrap().insert(path.to_path_buf(), total);
     }
     total
 }
+
+// ── Public API ─────────────────────────────────────────────────────────────
 
 pub fn scan_directory_with_progress(
     path: &PathBuf,
@@ -106,64 +143,66 @@ pub fn scan_directory_with_progress(
     ignored_dirs: Vec<String>,
     max_depth: Option<usize>,
 ) -> anyhow::Result<(Vec<FileEntry>, u64)> {
-    let mut entries = Vec::new();
     let read_dir = fs::read_dir(path)?;
-    let mut total_size: u64 = 0;
-    let mut counter = 0usize;
+    let dir_entries: Vec<_> = read_dir.filter_map(|e| e.ok()).collect();
 
-    for entry in read_dir {
-        let entry = entry?;
-        let metadata = match entry.metadata() {
-            Ok(m) => m,
-            Err(_) => continue,
-        };
-        let name = entry.file_name().to_string_lossy().to_string();
+    let counter = AtomicUsize::new(0);
+    let tx = ProgressSender::new(tx);
 
-        if ignored_dirs.iter().any(|i| i == &name) {
-            continue;
-        }
+    let entries: Vec<FileEntry> = dir_entries
+        .par_iter()
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if ignored_dirs.iter().any(|i| i == &name) {
+                return None;
+            }
 
-        let entry_path = entry.path();
-        let is_dir = metadata.is_dir();
+            let metadata = entry.metadata().ok()?;
+            let entry_path = entry.path();
+            let is_dir = metadata.is_dir();
 
-        counter += 1;
-        if counter.is_multiple_of(10) {
-            let _ = tx.send(ScanMessage::Progress {
-                scanned_files: counter,
-                current_path: entry_path.to_string_lossy().to_string(),
-            });
-        }
+            report_progress(&tx, &counter, 10, &entry_path);
 
-        let size = if is_dir {
-            // --depth applies to the top-level directory listing, so the
-            // first subdirectory level still gets `max_depth - 1`.
-            let inner = max_depth.map(|d| d.saturating_sub(1));
-            dir_size_with_progress(&entry_path, &tx, &mut counter, &ignored_dirs, inner)
-        } else {
-            metadata.len()
-        };
-        total_size = total_size.saturating_add(size);
+            let size = if is_dir {
+                // `--depth` applies to the top-level listing, so the first
+                // subdirectory level still gets `max_depth - 1`.
+                let inner = max_depth.map(|d| d.saturating_sub(1));
+                dir_size_parallel(&entry_path, &tx, &counter, &ignored_dirs, inner)
+            } else {
+                metadata.len()
+            };
 
-        let modified = metadata
-            .modified()
-            .ok()
-            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-            .map(|d| d.as_secs());
+            let modified = metadata
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                .map(|d| d.as_secs());
 
-        entries.push(FileEntry {
-            name,
-            path: entry_path,
-            size,
-            is_dir,
-            modified,
+            Some(FileEntry {
+                name,
+                path: entry_path,
+                size,
+                is_dir,
+                modified,
+            })
+        })
+        .collect();
+
+    let mut entries = entries;
+    entries.sort_by_key(|a| Reverse(a.size));
+
+    let total_size = entries
+        .iter()
+        .map(|e| e.size)
+        .fold(0u64, u64::saturating_add);
+
+    if let Ok(guard) = tx.lock() {
+        let _ = guard.send(ScanMessage::Finished {
+            entries: entries.clone(),
+            total_size,
         });
     }
 
-    entries.sort_by_key(|a| Reverse(a.size));
-    let _ = tx.send(ScanMessage::Finished {
-        entries: entries.clone(),
-        total_size,
-    });
     Ok((entries, total_size))
 }
 

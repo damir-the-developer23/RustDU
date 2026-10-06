@@ -26,7 +26,6 @@ impl Default for Config {
 
 impl Config {
     /// `$XDG_CONFIG_HOME/rustdu/config.json` or `~/.config/rustdu/config.json`.
-    /// `$XDG_CONFIG_HOME/rustdu/config.json` or `~/.config/rustdu/config.json`.
     pub fn path() -> Option<PathBuf> {
         let base = match std::env::var_os("XDG_CONFIG_HOME") {
             Some(xdg) => PathBuf::from(xdg),

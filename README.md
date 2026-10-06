@@ -8,6 +8,14 @@ RustDU 🦀 is actively maintained as a pet project alongside my university stud
 
 Contributions 🤝 and issues 🐞 are always welcome! 😄 I'd love to read your ideas 💡, requests 📩, and suggestions 💭 — though I do ask that you refrain from posting nasty comments 💬🚫.
 
+---
+
+## 💬 Community & Feedback
+
+- **Ideas, bugs, questions:** [Discussions](https://github.com/damir-the-developer23/RustDU/discussions)
+- **Issue tracker:** [github.com/damir-the-developer23/RustDU/issues](https://github.com/damir-the-developer23/RustDU/issues)
+- **Telegram:** [t.me/MyRustDU](https://t.me/MyRustDU) · [t.me/MyRustDU_input](https://t.me/MyRustDU_input)
+
 ## 📢 My channels:
 1. 📱 **https://t.me/MyRustDU**
 2. 📥 **https://t.me/MyRustDU_input**
@@ -16,7 +24,7 @@ My Github: **github.com/damir-the-developer23/rustdu**
 
 [![Crates.io](https://img.shields.io/crates/v/rustdu.svg)](https://crates.io/crates/rustdu)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Rust](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-1.88%2B-blue.svg)](https://www.rust-lang.org)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/damir-the-developer23/rustdu/actions)
 
 ---

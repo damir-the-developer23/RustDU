@@ -142,8 +142,11 @@ impl App {
             KeyCode::Char('y') => {
                 let names: Vec<String> = self.marked_items.drain().collect();
                 for name in names {
-                    let full_path = self.current_path.join(&name);
-                    let _ = scanner::delete_entry(&full_path);
+                    
+if let Some(entry) = self.raw_entries.iter().find(|e| e.name == name) {
+                    let _ = scanner::delete_entry(&entry.path);
+                }
+
                 }
                 self.load_directory();
                 self.mode = AppMode::Browse;

@@ -1,0 +1,1 @@
+/home/damir/rustdu/target/debug/rustdu: /home/damir/rustdu/src/app/handlers.rs /home/damir/rustdu/src/app/mod.rs /home/damir/rustdu/src/config.rs /home/damir/rustdu/src/main.rs /home/damir/rustdu/src/scanner.rs /home/damir/rustdu/src/tui.rs /home/damir/rustdu/src/ui.rs

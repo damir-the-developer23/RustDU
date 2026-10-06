@@ -49,6 +49,18 @@ fn format_entry_line(app: &App, entry: &FileEntry) -> String {
 
 // ── Render ─────────────────────────────────────────────────────────
 
+    // ── Spinner ────────────────────────────────────────────────────────
+
+    /// Returns a Braille spinner glyph that advances roughly every 100 ms.
+    fn spinner_glyph() -> &'static str {
+        const FRAMES: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        let ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        FRAMES[(ms / 100) as usize % FRAMES.len()]
+    }
+
 pub fn render(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
 
@@ -160,10 +172,12 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
     // ── Loading popup ──────────────────────────────────────────────
     if app.loading {
-        let loading_title = match app.lang {
-            Language::English => " Scanning Directory... ",
-            Language::Russian => " Сканирование директории... ",
-        };
+        
+    let loading_title = match app.lang {
+        Language::English => format!(" {} Scanning Directory... ", spinner_glyph()),
+        Language::Russian => format!(" {} Сканирование директории... ", spinner_glyph()),
+    };
+
         let info_text = match app.lang {
             Language::English => format!(
                 "Scanned files: {}\nPath: {}\n\nPlease wait...",

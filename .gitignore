@@ -3,3 +3,6 @@ rustdu_report.json
 cargo.lock
 .github
 .cargo
+.rustdu_backup_*/
+rustdu_report.json
+script.sh

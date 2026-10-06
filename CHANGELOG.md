@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.0] — 2026-09-17
 
 ### Added
+- **License changed from MIT to Apache-2.0** (starting with v0.3.0).
+  Versions 0.1.x and 0.2.x remain MIT-licensed.
 - **Percentage bars** in the main list (`████████░░░░░░░░`) — each entry now shows its share of the total size as a 16-char bar
 - **Sort by modified time** — press `t`
 - **`--json` flag** — dump a JSON report to stdout and exit (headless mode for scripts)
